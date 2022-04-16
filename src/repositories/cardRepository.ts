@@ -12,7 +12,7 @@ export interface Card {
   id: number;
   employeeId: number;
   number: string;
-  cardholderName: string;
+  cardHolderName: string;
   securityCode: string;
   expirationDate: string;
   password?: string;
@@ -66,12 +66,23 @@ export async function findByCardDetails(
 
   return result.rows[0];
 }
+export async function findByNumber(cardNumber: string) {
+  const result = await connection.query<[string]>(
+    ` SELECT 
+        * 
+      FROM cards 
+      WHERE number=$1`,
+    [cardNumber]
+  );
+
+  return result.rows[0];
+}
 
 export async function insert(cardData: CardInsertData) {
   const {
     employeeId,
     number,
-    cardholderName,
+    cardHolderName: cardholderName,
     securityCode,
     expirationDate,
     password,

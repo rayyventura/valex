@@ -7,17 +7,20 @@ export default function errorHandlerMiddleware(
   next: NextFunction
 ) {
   switch (error.type) {
+    case "invalid_data":
+      return res.status(400).send(error.message);
+      break;
     case "unauthorized":
-      return res.sendStatus(401);
+      return res.status(401).send(error.message);
       break;
     case "not_found":
-      return res.sendStatus(404);
+      return res.status(404).send(error.message);
       break;
     case "conflict":
-      return res.sendStatus(409);
+      return res.status(409).send(error.message);
       break;
     case "unprocessable_entity":
-      return res.sendStatus(422);
+      return res.status(422).send(error.message);
       break;
   }
   console.log(error);
