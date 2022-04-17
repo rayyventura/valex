@@ -1,26 +1,19 @@
 import * as cardRepository from "../repositories/cardRepository.js";
 import * as employeeRepository from "../repositories/employeeRepository.js";
-import * as companyRepository from "../repositories/companyRepository.js";
+import * as paymentRepository from "../repositories/paymentRepository.js";
+import * as rechargeRepository from "../repositories/rechargeRepository.js";
+import { verifyExistingCard } from "../utils/sqlUtils.js";
 import { TransactionTypes } from "../repositories/cardRepository.js";
 import { faker } from "@faker-js/faker";
 import dayjs from "dayjs";
 import bcrypt from "bcrypt";
 
-export async function create(
-  employeeId: number,
-  type: TransactionTypes,
-  apiKey: string
-) {
-  await verifyApiKey(apiKey);
+export async function create(employeeId: number, type: TransactionTypes) {
   await verifyExistingEmployee(employeeId);
   await verifyExistingCardType(type, employeeId);
   const cardData = await generateCardData(employeeId, type);
   await cardRepository.insert(cardData);
 }
-/*- OK Cartões já ativados (com senha cadastrada) não devem poder ser ativados de novo
-- O CVC deverá ser recebido e verificado para garantir a segurança da requisição
-- OK A senha do cartão deverá ser composta de 4 números
-- A senha do cartão deverá ser persistida de forma criptografada por ser um dado sensível */
 
 export async function activate({ cardId, cvc, password }) {
   const card = await cardRepository.findById(cardId);
@@ -32,20 +25,37 @@ export async function activate({ cardId, cvc, password }) {
 
   await cardRepository.update(cardId, { password: hashedPassword });
 }
+export async function getTransaction(cardId: number) {
+  const transactions = await paymentRepository.findByCardId(cardId);
+  const recharges = await rechargeRepository.findByCardId(cardId);
+  const balance = await calculateBalance({ transactions, recharges });
 
+  return { balance, transactions, recharges };
+}
+
+async function calculateBalance({ transactions, recharges }) {
+  let paymentTotal = 0;
+  let rechargeTotal = 0;
+  await transactions.forEach(({ amount }) => {
+    paymentTotal += Number(amount);
+  });
+
+  await recharges.forEach(({ amount }) => {
+    rechargeTotal += Number(amount);
+  });
+  return rechargeTotal - paymentTotal;
+}
 async function verifyCVC(cvc: string, securityCode: string) {
   const isValidCVC = bcrypt.compareSync(cvc, securityCode);
   if (!isValidCVC) {
     throw { type: "unauthorized", message: "invalid card information" };
   }
 }
-
 async function verifyPreviousActivation(password: string) {
   if (password) {
     throw { type: "invalid_data", message: "card already activated" };
   }
 }
-
 async function verifyExpirationDate(expirationDate: string) {
   const isExpired = dayjs(expirationDate).isBefore(
     dayjs(Date.now()).format("MM-YY")
@@ -55,17 +65,6 @@ async function verifyExpirationDate(expirationDate: string) {
   }
 }
 
-async function verifyExistingCard(card: cardRepository.Card) {
-  if (!card) {
-    throw { type: "unauthorized", message: "inexistent card" };
-  }
-}
-async function verifyApiKey(key: string) {
-  const company = await companyRepository.findByApiKey(key);
-  if (!company) {
-    throw { type: "unauthorized", message: "invalid api key" };
-  }
-}
 async function verifyExistingEmployee(employeeId: number) {
   const employee = await employeeRepository.findById(employeeId);
   if (!employee) {
@@ -108,7 +107,6 @@ function defineExpirationDate() {
 }
 function generateEncriptedCVC() {
   const CVC = faker.finance.creditCardCVV();
-
   return bcrypt.hashSync(CVC, 10);
 }
 async function generateCardData(employeeId: number, type: TransactionTypes) {

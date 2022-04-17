@@ -1,4 +1,5 @@
 import Joi from "joi";
+
 const cardSchema = Joi.object({
   employeeId: Joi.number().integer().required(),
   type: Joi.string().required(),
