@@ -9,11 +9,18 @@ import dayjs from "dayjs";
 export async function pay({ cardId, password, businessId, amount }) {
   const card = await cardRepository.findById(cardId);
   await verifyExistingCard(card);
+  await verifyExistingBusiness(businessId);
   await verifyExpirationDate(card.expirationDate);
   await verifyCorrectPassword(password, card.password);
   await verifyCardBusinessType(businessId, card);
   await verifyEvenAmount(cardId, amount);
   paymentRepository.insert({ cardId, businessId, amount });
+}
+async function verifyExistingBusiness(businessId: number) {
+  const business = await businessRepository.findById(businessId);
+  if (!business) {
+    throw { type: "unauthorized", message: "business is not registered" };
+  }
 }
 async function calculateBalance({ transactions, recharges }) {
   let paymentTotal = 0;
